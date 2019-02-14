@@ -6,9 +6,7 @@ import random
 from Translation import translate
 from HandleJs import Py4Js
 from multiprocessing.dummy import Pool as ThreadPool
-import re
-
-pool = ThreadPool(8)
+from config import logger, pool_num
 
 
 def check_contain_chinese(check_str):
@@ -19,6 +17,7 @@ def check_contain_chinese(check_str):
 
 
 def extract_info_from_translation(translation):
+    """暴力方式，效率低"""
     translation_new = []
     translation_last = []
     for item in translation:
@@ -49,19 +48,35 @@ def extract_info_from_translation(translation):
     return translation_result
 
 
+def extract_translation(translation):
+    """仔细研究翻译返回结果抽象出来的高效率方式"""
+    output_list = []
+    best_res = translation[0]  # 第一部分应该是最佳翻译结果
+    for sent_tup in best_res[:-1]:
+        sent = sent_tup[0]
+        if not isinstance(sent, str):
+            logger.error("服务返回翻译结果格式无法解析，请检查解析程序....")
+            return
+        if not check_contain_chinese(sent):  # 返回结果中不包含中文字符，可能翻译效果不是很好
+            logger.error("服务返回翻译结果中不包含中文字符，请检查返回翻译结果内容是否符合要求....")
+        output_list.append(sent)
+    return '\n'.join(output_list)
+
+
 def combine_translate(tp):
     global fo
     tp = list(tp)
     term_en = tp[1]
     tk = Py4Js().getTk(term_en)
-    t = random.choice([0.5, 0.75, 1, 1.25, 1.5])
+    t = random.choice([0.5, 0.45, 0.35, 0.25, 0.15, 0.05])
     time.sleep(t)
     try:
         translation = translate(tk, term_en)
-        try:
-            result = extract_info_from_translation(translation)
-        except Exception as e:
+        if not isinstance(translation, list) or len(translation) < 9:
+            logger.error("请求翻译服务失败，返回了错误的结果，请检查....")
             result = 'NULL'
+        else:
+            result = extract_translation(translation)
         tp.append(result)
         new_line = '\t'.join(tp)+'\n'
         return new_line
@@ -71,7 +86,8 @@ def combine_translate(tp):
 
 def parallel_translate(input, output, pool_num):
     """
-    批量翻译
+    批量翻译，接受文件格式见example_input，可以为1列内容；若为多列信息，请将待翻译内容放置最后一列，并与
+    其余列用\t隔开
     """
     with open(input, 'r', encoding='utf-8') as f, open(output, 'w', encoding='utf-8') as fo:
         pool = ThreadPool(pool_num)
@@ -79,12 +95,13 @@ def parallel_translate(input, output, pool_num):
         for line in f:
             line = line.strip()
             line_list = line.split('\t')
-            prefix_info = line_list[0]+'\t'+line_list[1]
-            translation_en = line_list[2]
+            prefix_info = '\t'.join(line_list[:-1])
+            translation_en = line_list[-1]
+            # todo 自定义条件，根据需求调整
             if not translation_en == '[not available]':
                 tup = (prefix_info, translation_en)
                 input_list.append(tup)
-        for res in pool.imap(combine_translate, input_list, chunksize=100):
+        for res in pool.imap_unordered(combine_translate, input_list, chunksize=1000):
             # imap is much slower than map, if you don't concern the order, using imap_unordered, which much
             # faster than the imap
             fo.write(str(res))
@@ -93,7 +110,7 @@ def parallel_translate(input, output, pool_num):
 
 
 if __name__ == '__main__':
-    inp = 'test'
+    inp = 'example_input'
     output = 'temp'
-    parallel_translate(inp, output, 1)
+    parallel_translate(inp, output, pool_num)
 
