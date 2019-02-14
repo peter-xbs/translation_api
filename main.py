@@ -5,7 +5,7 @@ import time
 import random
 from Translation import translate
 from HandleJs import Py4Js
-from multiprocessing.dummy import Pool as ThreadPool
+from multiprocessing.dummy import Pool as threadpool
 from config import logger, pool_num
 
 
@@ -90,23 +90,34 @@ def parallel_translate(input, output, pool_num):
     其余列用\t隔开
     """
     with open(input, 'r', encoding='utf-8') as f, open(output, 'w', encoding='utf-8') as fo:
-        pool = ThreadPool(pool_num)
-        input_list = []
-        for line in f:
-            line = line.strip()
-            line_list = line.split('\t')
-            prefix_info = '\t'.join(line_list[:-1])
-            translation_en = line_list[-1]
-            # todo 自定义条件，根据需求调整
-            if not translation_en == '[not available]':
-                tup = (prefix_info, translation_en)
-                input_list.append(tup)
-        for res in pool.imap_unordered(combine_translate, input_list, chunksize=1000):
-            # imap is much slower than map, if you don't concern the order, using imap_unordered, which much
-            # faster than the imap
-            fo.write(str(res))
-        pool.close()
-        pool.join()
+        if pool_num > 1:
+            pool = threadpool(pool_num)
+            input_list = []
+            for line in f:
+                line = line.strip()
+                line_list = line.split('\t')
+                prefix_info = '\t'.join(line_list[:-1])
+                translation_en = line_list[-1]
+                # todo 自定义条件，根据需求调整
+                if not translation_en == '[not available]':
+                    tup = (prefix_info, translation_en)
+                    input_list.append(tup)
+            for res in pool.imap(combine_translate, input_list, chunksize=1000):
+                # imap is much slower than map, if you don't concern the order, using imap_unordered, which much
+                # faster than the imap
+                fo.write(str(res))
+            pool.close()
+            pool.join()
+        else:
+            for line in f:
+                line = line.strip()
+                line_list = line.split('\t')
+                prefix_info = '\t'.join(line_list[:-1])
+                translation_en = line_list[-1]
+                # todo 根据需求在此处设置自定义条件
+                new_line = combine_translate((prefix_info, translation_en))
+                fo.write(str(new_line))
+
 
 
 if __name__ == '__main__':

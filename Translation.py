@@ -3,7 +3,7 @@
 import requests
 from HandleJs import Py4Js
 from config import url, test_content
-from config import logger
+from config import logger, get_header
 
 
 def translate(tk, content):
@@ -13,7 +13,7 @@ def translate(tk, content):
 
     param = {'tk': tk, 'q': content}
 
-    result = requests.get(url, params=param).json()
+    result = requests.get(url, params=param, headers=get_header()).json()
 
     # 返回的结果为Json，解析为一个嵌套列表
     return result
