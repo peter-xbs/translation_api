@@ -1,0 +1,10 @@
+*.pyc
+.idea
+*.iml
+*.xml
+*.log
+__pycache__
+*.log
+*.data
+temp
+
